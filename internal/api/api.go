@@ -3,6 +3,9 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/kevinyuzekai/LinkPool/internal/app"
@@ -23,6 +26,9 @@ func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("/api/diag", h.diag)
 	mux.HandleFunc("/api/listen", h.listen)
 	mux.HandleFunc("/api/stats/reset", h.resetStats)
+	mux.HandleFunc("/api/scheduler", h.scheduler)
+	mux.HandleFunc("/api/download", h.download)
+	mux.HandleFunc("/api/download/", h.downloadSub)
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {
@@ -148,4 +154,119 @@ func (h *Handler) resetStats(w http.ResponseWriter, r *http.Request) {
 	}
 	h.App.Stats.Reset()
 	writeJSON(w, 200, h.App.Status())
+}
+
+func (h *Handler) scheduler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		writeJSON(w, 200, map[string]any{
+			"mode":             string(h.App.SchedulerMode()),
+			"effectiveWeights": h.App.Sched.EffectiveWeights(),
+		})
+		return
+	}
+	if r.Method != http.MethodPost {
+		writeJSON(w, 405, map[string]string{"error": "GET/POST"})
+		return
+	}
+	var body struct {
+		Mode string `json:"mode"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, 400, map[string]string{"error": err.Error()})
+		return
+	}
+	mode := h.App.SetSchedulerMode(body.Mode)
+	writeJSON(w, 200, map[string]any{
+		"mode":             string(mode),
+		"effectiveWeights": h.App.Sched.EffectiveWeights(),
+	})
+}
+
+func (h *Handler) download(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		writeJSON(w, 200, map[string]any{"jobs": h.App.Downloads.List(), "dir": h.App.Downloads.Dir})
+	case http.MethodPost:
+		var body struct {
+			URL         string `json:"url"`
+			Concurrency int    `json:"concurrency"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			writeJSON(w, 400, map[string]string{"error": err.Error()})
+			return
+		}
+		if strings.TrimSpace(body.URL) == "" {
+			writeJSON(w, 400, map[string]string{"error": "缺少 url"})
+			return
+		}
+		job, err := h.App.Downloads.Start(r.Context(), strings.TrimSpace(body.URL), body.Concurrency)
+		if err != nil {
+			writeJSON(w, 400, map[string]string{"error": err.Error()})
+			return
+		}
+		snap := job.Snapshot()
+		writeJSON(w, 200, map[string]any{"job": snap})
+	default:
+		writeJSON(w, 405, map[string]string{"error": "GET/POST"})
+	}
+}
+
+func (h *Handler) downloadSub(w http.ResponseWriter, r *http.Request) {
+	// /api/download/{id} or /api/download/{id}/file or /api/download/{id}/cancel
+	path := strings.TrimPrefix(r.URL.Path, "/api/download/")
+	path = strings.Trim(path, "/")
+	if path == "" {
+		h.download(w, r)
+		return
+	}
+	parts := strings.Split(path, "/")
+	id := parts[0]
+	action := ""
+	if len(parts) > 1 {
+		action = parts[1]
+	}
+
+	job, ok := h.App.Downloads.Get(id)
+	if !ok {
+		writeJSON(w, 404, map[string]string{"error": "任务不存在"})
+		return
+	}
+
+	switch action {
+	case "", "status":
+		writeJSON(w, 200, map[string]any{"job": job.Snapshot()})
+	case "cancel":
+		if r.Method != http.MethodPost {
+			writeJSON(w, 405, map[string]string{"error": "POST only"})
+			return
+		}
+		h.App.Downloads.Cancel(id)
+		writeJSON(w, 200, map[string]any{"job": job.Snapshot()})
+	case "file":
+		snap := job.Snapshot()
+		if snap.Status != "done" || snap.FilePath == "" {
+			writeJSON(w, 400, map[string]string{"error": "文件尚未就绪"})
+			return
+		}
+		f, err := os.Open(snap.FilePath)
+		if err != nil {
+			writeJSON(w, 500, map[string]string{"error": err.Error()})
+			return
+		}
+		defer f.Close()
+		stat, _ := f.Stat()
+		name := snap.FileName
+		if name == "" {
+			name = filepath.Base(snap.FilePath)
+		}
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Content-Disposition", "attachment; filename=\""+name+"\"")
+		if stat != nil {
+			http.ServeContent(w, r, name, stat.ModTime(), f)
+		} else {
+			http.ServeContent(w, r, name, time.Now(), f)
+		}
+	default:
+		writeJSON(w, 404, map[string]string{"error": "unknown action"})
+	}
 }

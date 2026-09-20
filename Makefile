@@ -1,6 +1,6 @@
-.PHONY: build test run tidy clean build-darwin-arm64 package-dmg app
+.PHONY: build test run tidy clean build-darwin-arm64 build-darwin-amd64 package-dmg package-dmg-amd64 app
 
-VERSION ?= 0.1.1
+VERSION ?= 0.2.0
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
 build:
@@ -18,12 +18,19 @@ tidy:
 clean:
 	rm -rf bin build
 
-# Cross-compile CLI/core for Apple Silicon (works on Linux CI / this box)
+# Cross-compile for Apple Silicon (works on Linux CI / this box)
 build-darwin-arm64:
-	./scripts/build-macos-arm64.sh
+	ARCH=arm64 ./scripts/build-macos.sh
 
-# macOS only — creates .dmg via hdiutil
+# Cross-compile for Intel Mac (darwin/amd64)
+build-darwin-amd64:
+	ARCH=amd64 ./scripts/build-macos.sh
+
+# macOS only — creates .dmg via hdiutil (default arm64)
 package-dmg:
-	./scripts/package-dmg.sh
+	ARCH=arm64 ./scripts/package-dmg.sh
+
+package-dmg-amd64:
+	ARCH=amd64 ./scripts/package-dmg.sh
 
 app: build-darwin-arm64

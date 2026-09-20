@@ -18,7 +18,7 @@ import (
 )
 
 // Set via -ldflags "-X main.version=…"
-var version = "0.1.1"
+var version = "0.2.0"
 
 func main() {
 	uiAddr := flag.String("ui", "127.0.0.1:8787", "控制面板监听地址")

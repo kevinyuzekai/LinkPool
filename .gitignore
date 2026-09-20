@@ -1,9 +1,9 @@
-bin/
-build/
 *.dmg
-.DS_Store
 *.exe
+*.log
 *.test
+.DS_Store
 .idea/
 .vscode/
-*.log
+bin/
+build/

@@ -4,11 +4,14 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 
 	"github.com/kevinyuzekai/LinkPool/internal/adapter"
 	"github.com/kevinyuzekai/LinkPool/internal/diag"
+	"github.com/kevinyuzekai/LinkPool/internal/download"
 	"github.com/kevinyuzekai/LinkPool/internal/proxy"
 	"github.com/kevinyuzekai/LinkPool/internal/rules"
 	"github.com/kevinyuzekai/LinkPool/internal/scheduler"
@@ -28,6 +31,7 @@ type App struct {
 	Dialer     *proxy.Dialer
 	Proxy      *proxy.Server
 	SysProxy   *sysproxy.Manager
+	Downloads  *download.Manager
 
 	HTTPAddr  string
 	SOCKSAddr string
@@ -39,9 +43,19 @@ func New() *App {
 	r := rules.New()
 	r.SetRules(rules.DefaultBypass())
 	st := stats.New()
-	d := &proxy.Dialer{Sched: sched, Rules: r, Stats: st}
+	sched.SetStats(st)
+	// Default adaptive when we later have ≥2 adapters; mode stays adaptive regardless.
+	sched.SetMode(scheduler.ModeAdaptive)
+	d := &proxy.Dialer{Sched: sched, Rules: r, Stats: st, Timeout: 0, MaxFailover: 0}
 	cfg := proxy.Config{HTTPAddr: "127.0.0.1:18080", SOCKSAddr: "127.0.0.1:11080"}
-	return &App{
+	dlDir := filepath.Join(os.TempDir(), "linkpool-downloads")
+	if home, err := os.UserHomeDir(); err == nil {
+		cand := filepath.Join(home, "Downloads", "LinkPool")
+		if err := os.MkdirAll(cand, 0o755); err == nil {
+			dlDir = cand
+		}
+	}
+	a := &App{
 		Discoverer: adapter.DefaultDiscoverer(),
 		Sched:      sched,
 		Rules:      r,
@@ -52,6 +66,8 @@ func New() *App {
 		HTTPAddr:   cfg.HTTPAddr,
 		SOCKSAddr:  cfg.SOCKSAddr,
 	}
+	a.Downloads = download.NewManager(d, sched, dlDir)
+	return a
 }
 
 func (a *App) RefreshAdapters() ([]adapter.Adapter, error) {
@@ -124,6 +140,19 @@ func (a *App) rebuildSchedulerLocked() {
 	a.Sched.SetEntries(entries)
 }
 
+func (a *App) SetSchedulerMode(mode string) scheduler.Mode {
+	m := scheduler.Mode(mode)
+	if m != scheduler.ModeStatic && m != scheduler.ModeAdaptive {
+		m = scheduler.ModeAdaptive
+	}
+	a.Sched.SetMode(m)
+	return a.Sched.Mode()
+}
+
+func (a *App) SchedulerMode() scheduler.Mode {
+	return a.Sched.Mode()
+}
+
 func (a *App) StartProxy(setSysProxy bool) error {
 	a.mu.Lock()
 	if a.Sched.Len() == 0 {
@@ -159,15 +188,19 @@ func (a *App) Status() map[string]any {
 	st, errMsg := a.Proxy.Status()
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	a.Stats.Sample()
 	return map[string]any{
-		"status":       st,
-		"error":        errMsg,
-		"httpAddr":     a.HTTPAddr,
-		"socksAddr":    a.SOCKSAddr,
-		"sysProxy":     a.SysProxy.Enabled(),
-		"selected":     a.Sched.Len(),
-		"schedulerPicks": a.Sched.PickCount(),
-		"stats":        a.Stats.All(),
+		"status":           st,
+		"error":            errMsg,
+		"httpAddr":         a.HTTPAddr,
+		"socksAddr":        a.SOCKSAddr,
+		"sysProxy":         a.SysProxy.Enabled(),
+		"selected":         a.Sched.Len(),
+		"schedulerPicks":   a.Sched.PickCount(),
+		"schedulerMode":    string(a.Sched.Mode()),
+		"effectiveWeights": a.Sched.EffectiveWeights(),
+		"stats":            a.Stats.All(),
+		"downloadDir":      a.Downloads.Dir,
 	}
 }
 

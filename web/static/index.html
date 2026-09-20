@@ -13,11 +13,19 @@
         <div class="logo">LP</div>
         <div>
           <h1>LinkPool <span class="sub">网卡聚合助手</span></h1>
-          <p class="tagline">多网卡 · 新连接调度 · 本地代理（非单连接拆分）</p>
+          <p class="tagline">多网卡尽量叠加带宽 · 自适应调度 · 分段加速下载</p>
         </div>
       </div>
       <div class="status-pill" id="statusPill">已停止</div>
     </header>
+
+    <section class="card tip-card">
+      <p class="tip">
+        <strong>叠加说明：</strong>系统代理 / Steam 等<strong>多连接</strong>下载会自动把新连接分到各网卡从而叠加速度。
+        单文件可用下方「分段加速下载」把同一 URL 拆成多段 Range，每段走不同网卡，尽量把带宽加在一起。
+        <em>单条 TCP 无法拆分</em>是代理模式的物理限制（非 TUN/MPTCP）。
+      </p>
+    </section>
 
     <section class="card">
       <div class="card-head">
@@ -33,13 +41,20 @@
               <th>IPv4</th>
               <th>类型</th>
               <th>权重</th>
+              <th>近似速率</th>
               <th>状态</th>
             </tr>
           </thead>
           <tbody id="adapterBody"></tbody>
         </table>
       </div>
-      <p class="hint">权重越大，分配到的<strong>新出站连接</strong>越多（平滑加权轮询）。不会拆分单条 TCP。</p>
+      <div class="sched-row">
+        <label>调度：</label>
+        <label class="radio"><input type="radio" name="schedMode" value="adaptive" id="modeAdaptive" checked /> 自适应加速</label>
+        <label class="radio"><input type="radio" name="schedMode" value="static" id="modeStatic" /> 固定权重</label>
+        <span class="muted" id="effWeights"></span>
+      </div>
+      <p class="hint">自适应模式下，近期吞吐更高的网卡会分到更多<strong>新出站连接</strong>；拨号失败会自动换卡。固定权重则严格按你设的数字。单线程下载不会叠加。</p>
     </section>
 
     <section class="grid-2">
@@ -75,6 +90,25 @@
       </div>
     </section>
 
+    <section class="card">
+      <div class="card-head">
+        <h2>分段加速下载</h2>
+      </div>
+      <p class="hint" style="margin-top:0">将 HTTP(S) 文件拆成 N 段并行 Range 请求，每段绑定不同网卡，尽量接近带宽完全叠加。默认 N = 已选网卡数 × 2。需服务器支持 Range。</p>
+      <div class="form-row">
+        <label>URL</label>
+        <input id="dlUrl" placeholder="https://example.com/bigfile.zip" />
+      </div>
+      <div class="form-row">
+        <label>并发段数</label>
+        <input id="dlConc" type="number" min="0" placeholder="0=自动" value="0" />
+      </div>
+      <div class="actions">
+        <button type="button" class="btn primary" id="btnDownload">开始分段下载</button>
+      </div>
+      <pre id="dlBox" class="mono">尚未开始</pre>
+    </section>
+
     <section class="grid-2">
       <div class="card">
         <div class="card-head">
@@ -93,7 +127,7 @@
     </section>
 
     <footer>
-      <span>LinkPool v0.1 · MIT · 受 HypoMux 思路启发（系统代理模式 MVP）</span>
+      <span>LinkPool v0.2.0 · MIT · 受 HypoMux 思路启发（系统代理模式）</span>
       <span id="errBox" class="err"></span>
     </footer>
   </div>
