@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LinkPool · 网卡聚合助手</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="brand">
+        <div class="logo">LP</div>
+        <div>
+          <h1>LinkPool <span class="sub">网卡聚合助手</span></h1>
+          <p class="tagline">多网卡 · 新连接调度 · 本地代理（非单连接拆分）</p>
+        </div>
+      </div>
+      <div class="status-pill" id="statusPill">已停止</div>
+    </header>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>网卡列表</h2>
+        <button type="button" class="btn ghost" id="btnRefresh">刷新</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>选用</th>
+              <th>名称</th>
+              <th>IPv4</th>
+              <th>类型</th>
+              <th>权重</th>
+              <th>状态</th>
+            </tr>
+          </thead>
+          <tbody id="adapterBody"></tbody>
+        </table>
+      </div>
+      <p class="hint">权重越大，分配到的<strong>新出站连接</strong>越多（平滑加权轮询）。不会拆分单条 TCP。</p>
+    </section>
+
+    <section class="grid-2">
+      <div class="card">
+        <h2>代理控制</h2>
+        <div class="form-row">
+          <label>HTTP 代理</label>
+          <input id="httpAddr" value="127.0.0.1:18080" />
+        </div>
+        <div class="form-row">
+          <label>SOCKS5</label>
+          <input id="socksAddr" value="127.0.0.1:11080" />
+        </div>
+        <label class="check">
+          <input type="checkbox" id="sysProxy" />
+          启用 macOS 系统代理（需在 Mac 上；停止时自动恢复）
+        </label>
+        <div class="actions">
+          <button type="button" class="btn primary" id="btnStart">启动</button>
+          <button type="button" class="btn danger" id="btnStop">停止</button>
+          <button type="button" class="btn ghost" id="btnApplyListen">应用监听地址</button>
+        </div>
+        <p class="hint" id="proxyHint">浏览器 / Steam 可手动指向上述地址。</p>
+      </div>
+
+      <div class="card">
+        <h2>直连 / 绕过规则</h2>
+        <textarea id="bypass" rows="8" placeholder="每行一条：localhost&#10;.apple.com&#10;*.local"></textarea>
+        <div class="actions">
+          <button type="button" class="btn" id="btnSaveBypass">保存规则</button>
+        </div>
+        <p class="hint">精确主机名，或以 <code>.</code> / <code>*.</code> 开头的后缀匹配。</p>
+      </div>
+    </section>
+
+    <section class="grid-2">
+      <div class="card">
+        <div class="card-head">
+          <h2>每网卡统计</h2>
+          <button type="button" class="btn ghost" id="btnResetStats">清零</button>
+        </div>
+        <pre id="statsBox" class="mono">—</pre>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <h2>源 IP 诊断</h2>
+          <button type="button" class="btn" id="btnDiag">检测出口</button>
+        </div>
+        <pre id="diagBox" class="mono">选择网卡后点击检测，将绑定源地址请求公网 IP。</pre>
+      </div>
+    </section>
+
+    <footer>
+      <span>LinkPool v0.1 · MIT · 受 HypoMux 思路启发（系统代理模式 MVP）</span>
+      <span id="errBox" class="err"></span>
+    </footer>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

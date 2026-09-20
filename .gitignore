@@ -1,0 +1,9 @@
+bin/
+build/
+*.dmg
+.DS_Store
+*.exe
+*.test
+.idea/
+.vscode/
+*.log
