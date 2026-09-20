@@ -17,3 +17,8 @@ func openBrowser(url string) error {
 		return nil
 	}
 }
+
+func notifyUIReady(url string) {
+	// no-op on non-Darwin
+	_ = url
+}

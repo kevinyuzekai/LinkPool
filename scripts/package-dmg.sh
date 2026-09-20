@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT_DIR="${OUT_DIR:-$ROOT/build/macos}"
 APP="$OUT_DIR/LinkPool.app"
-VERSION="${VERSION:-0.1.0}"
+VERSION="${VERSION:-0.1.1}"
 DMG_NAME="LinkPool-${VERSION}-arm64.dmg"
 DMG_PATH="$OUT_DIR/$DMG_NAME"
 VOL_NAME="LinkPool"
@@ -29,13 +29,19 @@ mkdir -p "$STAGE"
 cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
 
+STAGE_APP="$STAGE/LinkPool.app"
+# Re-sign after copy so quarantine/copy doesn't leave an unsigned tree
+echo "==> ad-hoc codesign (stage)"
+codesign --force --deep --sign - "$STAGE_APP"
+
 # Optional README in DMG
 cat > "$STAGE/使用说明.txt" << TXT
 LinkPool 网卡聚合助手 v${VERSION}
 
 1. 将 LinkPool.app 拖到「应用程序」文件夹
 2. 首次打开若被拦截：系统设置 → 隐私与安全性 → 仍要打开
-3. 启动后浏览器打开 http://127.0.0.1:8787 控制面板
+   或在终端执行：xattr -cr /Applications/LinkPool.app
+3. 本应用没有原生窗口；启动后请用浏览器打开 http://127.0.0.1:8787 控制面板
 4. 勾选网卡、设权重，点击「启动」
 5. 可选启用系统代理，或手动将浏览器/Steam 指向：
    HTTP  127.0.0.1:18080

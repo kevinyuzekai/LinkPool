@@ -63,9 +63,12 @@ make build          # → bin/linkpool
 ### 打出 .app 与 .dmg（必须在 macOS 上）
 
 ```bash
-./scripts/build-macos-arm64.sh   # 生成 build/macos/LinkPool.app + 裸二进制
-./scripts/package-dmg.sh         # 生成 build/macos/LinkPool-0.1.0-arm64.dmg
+./scripts/build-macos-arm64.sh   # 生成 .app + 裸二进制，并 ad-hoc codesign
+./scripts/package-dmg.sh         # 生成 build/macos/LinkPool-0.1.1-arm64.dmg
 ```
+
+首次打开若被 Gatekeeper 拦截：系统设置 → 隐私与安全性 → 仍要打开，或执行 `xattr -cr /path/to/LinkPool.app`。  
+**无原生窗口** — 启动后用浏览器打开 `http://127.0.0.1:8787`。
 
 可选图标：
 

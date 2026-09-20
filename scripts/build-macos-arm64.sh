@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Cross-compile LinkPool for Apple Silicon (arm64).
 # On Linux: produces the binary only.
-# On macOS: also assembles LinkPool.app under build/macos/.
+# On macOS: also assembles LinkPool.app under build/macos/ and ad-hoc codesigns.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-VERSION="${VERSION:-0.1.0}"
+VERSION="${VERSION:-0.1.1}"
 OUT_DIR="${OUT_DIR:-$ROOT/build/macos}"
 BIN_NAME="LinkPool"
 mkdir -p "$OUT_DIR"
@@ -34,6 +34,14 @@ fi
 
 # PkgInfo
 echo -n "APPL????" > "$APP/Contents/PkgInfo"
+
+# Ad-hoc codesign on Darwin (helps Gatekeeper accept unsigned local builds)
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  echo "==> ad-hoc codesign"
+  codesign --force --deep --sign - "$APP"
+  codesign --force --sign - "$OUT_DIR/${BIN_NAME}"
+  codesign -dv --verbose=2 "$APP" 2>&1 | head -20 || true
+fi
 
 # Convenience: also keep bare binary next to .app
 echo "Built:"

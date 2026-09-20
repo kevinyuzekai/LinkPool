@@ -18,7 +18,7 @@ import (
 )
 
 // Set via -ldflags "-X main.version=…"
-var version = "0.1.0"
+var version = "0.1.1"
 
 func main() {
 	uiAddr := flag.String("ui", "127.0.0.1:8787", "控制面板监听地址")
@@ -73,7 +73,13 @@ func main() {
 	}()
 
 	if autoOpen {
-		_ = openBrowser(fmt.Sprintf("http://%s", *uiAddr))
+		uiURL := fmt.Sprintf("http://%s", *uiAddr)
+		if err := openBrowser(uiURL); err != nil {
+			log.Printf("打开浏览器失败: %v — 请手动打开 %s（本应用无原生窗口）", err, uiURL)
+		}
+		if runningFromAppBundle() {
+			notifyUIReady(uiURL)
+		}
 	}
 
 	ch := make(chan os.Signal, 1)
